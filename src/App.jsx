@@ -127,6 +127,14 @@ export default function AgentFactory() {
 
   useEffect(() => { chatEnd.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, busy]);
 
+  // Escape closes the export dialog.
+  useEffect(() => {
+    if (!showExport) return;
+    const onKey = (e) => { if (e.key === "Escape") setShowExport(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showExport]);
+
   const systemPrompt = buildSystemPrompt(bp, cfg);
 
   const pickBlueprint = (b) => {
@@ -186,7 +194,6 @@ export default function AgentFactory() {
   return (
     <div style={S.root}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
         * { box-sizing: border-box; }
         ::selection { background: ${T.safety}; color: #fff; }
         input:focus, textarea:focus, select:focus { outline: 2px solid ${T.cyan}; outline-offset: 1px; }
@@ -302,7 +309,8 @@ export default function AgentFactory() {
               </div>
               <div style={{ display: "flex", gap: 10, padding: 14, borderTop: `1px solid ${T.line}` }}>
                 <input style={{ ...S.input, marginBottom: 0, flex: 1 }} value={input} placeholder="Give your agent a real task…"
-                  onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} />
+                  aria-label="Task for your agent" maxLength={12000}
+                  onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && send()} />
                 <button style={{ ...S.primary, padding: "0 22px" }} onClick={send} disabled={busy}>Run</button>
               </div>
             </section>
@@ -329,16 +337,16 @@ export default function AgentFactory() {
       {/* Export modal */}
       {showExport && (
         <div style={S.overlay} onClick={() => setShowExport(false)}>
-          <div style={S.modal} onClick={(e) => e.stopPropagation()}>
+          <div style={S.modal} role="dialog" aria-modal="true" aria-label="Export your agent" onClick={(e) => e.stopPropagation()}>
             {!unlocked ? (
               <>
                 <div style={{ ...S.mono, color: T.cyan, marginBottom: 6 }}>TAKE IT WITH YOU</div>
                 <h2 style={{ ...S.h2, marginBottom: 20 }}>Your agent is built. Own it.</h2>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
                   <Tier price="$29" name="Agent Export" items={["Complete system prompt", "Node.js starter code", "3 deployment paths guide", "Claude / API / Claude Code setup"]}
-                    onBuy={() => payLinks.export ? window.open(payLinks.export, "_blank") : setUnlocked(true)} />
+                    onBuy={() => payLinks.export ? window.open(payLinks.export, "_blank", "noopener") : setUnlocked(true)} />
                   <Tier price="$99" name="Agent Starter Kit" featured items={["Everything in Export", "7-stage agent pipeline scaffold", "All 5 blueprint templates", "Walkthrough guide", "Security guardrail hook included"]}
-                    onBuy={() => payLinks.kit ? window.open(payLinks.kit, "_blank") : setUnlocked(true)} />
+                    onBuy={() => payLinks.kit ? window.open(payLinks.kit, "_blank", "noopener") : setUnlocked(true)} />
                 </div>
                 {!payLinks.export && <p style={{ ...S.mono, color: T.dim, margin: 0 }}>DEMO MODE — SET STRIPE_LINK_EXPORT / STRIPE_LINK_KIT ENV VARS TO GO LIVE</p>}
               </>
