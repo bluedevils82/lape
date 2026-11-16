@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { buildSkillMd, buildGptSetup, buildSkillZip } from "./exports.js";
 
 /* ─────────────────────────────────────────────────────────
    LAPE — Builder Playground
@@ -24,6 +25,8 @@ const T = {
 const BLUEPRINTS = [
   {
     id: "email",
+    useWhen: "asks to triage, sort, summarize or draft replies to emails",
+    starters: ["Triage these 5 emails and tell me what is urgent.", "Draft a reply to this email.", "Summarize this thread in two sentences."],
     tag: "OPS-01",
     name: "Email Triage Agent",
     blurb: "Sorts, summarizes, and drafts replies so inbox time drops from hours to minutes.",
@@ -33,6 +36,8 @@ const BLUEPRINTS = [
   },
   {
     id: "research",
+    useWhen: "asks to research a question, compare options or write a decision brief",
+    starters: ["Write a brief on this question.", "What is still uncertain here?", "Compare these two options and recommend one."],
     tag: "INT-02",
     name: "Research Assistant",
     blurb: "Turns a vague question into a structured brief with sources, gaps, and a recommendation.",
@@ -42,6 +47,8 @@ const BLUEPRINTS = [
   },
   {
     id: "content",
+    useWhen: "asks to turn an article, transcript or long post into social posts or a newsletter",
+    starters: ["Repurpose this article for LinkedIn, X and email.", "Give me three hooks from this piece.", "Turn this transcript into a LinkedIn post."],
     tag: "MKT-03",
     name: "Content Repurposer",
     blurb: "One long piece in, five platform-native posts out. No generic filler.",
@@ -51,6 +58,8 @@ const BLUEPRINTS = [
   },
   {
     id: "meetings",
+    useWhen: "shares meeting notes or a transcript and wants decisions and action items",
+    starters: ["Pull the action items from these notes.", "What did we decide in this meeting?", "Which action items have no owner?"],
     tag: "OPS-04",
     name: "Meeting → Action Items",
     blurb: "Raw notes or transcript in, owned action items with deadlines out.",
@@ -60,6 +69,8 @@ const BLUEPRINTS = [
   },
   {
     id: "faq",
+    useWhen: "asks to answer a customer question or draft a support reply",
+    starters: ["Draft a reply to this customer.", "Should this ticket be escalated?", "Answer this question using our policy below."],
     tag: "SVC-05",
     name: "Customer FAQ Responder",
     blurb: "Consistent, on-policy answers to repeat customer questions, escalating what it shouldn't touch.",
@@ -167,6 +178,18 @@ export default function AgentFactory() {
       setMessages((m) => [...m, { role: "assistant", content: "Connection error. Send that again." }]);
     }
     setBusy(false);
+  };
+
+  const downloadSkill = () => {
+    const { filename, bytes } = buildSkillZip(bp, cfg);
+    const url = URL.createObjectURL(new Blob([bytes], { type: "application/zip" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const copy = (label, text) => {
@@ -328,7 +351,7 @@ export default function AgentFactory() {
               <button style={{ ...S.primary, width: "100%", fontSize: 16 }} onClick={() => setShowExport(true)}>
                 Export this agent ↗
               </button>
-              <p style={{ ...S.mono, color: T.dim, marginTop: 10, textAlign: "center" }}>PROMPT + STARTER CODE + SETUP GUIDE</p>
+              <p style={{ ...S.mono, color: T.dim, marginTop: 10, textAlign: "center" }}>PROMPT + CLAUDE SKILL + CHATGPT GPT + STARTER CODE</p>
             </aside>
           </div>
         </main>
@@ -343,7 +366,7 @@ export default function AgentFactory() {
                 <div style={{ ...S.mono, color: T.cyan, marginBottom: 6 }}>TAKE IT WITH YOU</div>
                 <h2 style={{ ...S.h2, marginBottom: 20 }}>Your agent is built. Own it.</h2>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
-                  <Tier price="$29" name="Agent Export" items={["Complete system prompt", "Node.js starter code", "3 deployment paths guide", "Claude / API / Claude Code setup"]}
+                  <Tier price="$29" name="Agent Export" items={["Complete system prompt", "Installable Claude Skill (.zip)", "ChatGPT custom GPT setup", "Node.js starter code", "3 deployment paths guide", "Claude / API / Claude Code setup"]}
                     onBuy={() => payLinks.export ? window.open(payLinks.export, "_blank", "noopener") : setUnlocked(true)} />
                   <Tier price="$99" name="Agent Starter Kit" featured items={["Everything in Export", "7-stage agent pipeline scaffold", "All 5 blueprint templates", "Walkthrough guide", "Security guardrail hook included"]}
                     onBuy={() => payLinks.kit ? window.open(payLinks.kit, "_blank", "noopener") : setUnlocked(true)} />
@@ -355,6 +378,11 @@ export default function AgentFactory() {
                 <div style={{ ...S.mono, color: T.safety, marginBottom: 6 }}>UNLOCKED ✓</div>
                 <h2 style={{ ...S.h2, marginBottom: 16 }}>Your agent package</h2>
                 <ExportBlock label="SYSTEM PROMPT" text={systemPrompt} copied={copied} onCopy={copy} />
+                <ExportBlock label="CLAUDE SKILL (SKILL.MD)" text={buildSkillMd(bp, cfg)} copied={copied} onCopy={copy}
+                  action={<button style={S.linkBtn} onClick={downloadSkill}>Download .zip</button>}
+                  note="Install in Claude: open Settings, find Skills, and upload the zip. In Claude Code, unzip it into ~/.claude/skills/." />
+                <ExportBlock label="CHATGPT CUSTOM GPT" text={buildGptSetup(bp, cfg, systemPrompt)} copied={copied} onCopy={copy}
+                  note="Install in ChatGPT: Explore GPTs, Create, Configure, then paste each section into the matching field." />
                 <ExportBlock label="STARTER CODE (NODE.JS)" text={STARTER_CODE(systemPrompt)} copied={copied} onCopy={copy} />
               </>
             )}
@@ -398,14 +426,18 @@ function Tier({ price, name, items, featured, onBuy }) {
   );
 }
 
-function ExportBlock({ label, text, copied, onCopy }) {
+function ExportBlock({ label, text, copied, onCopy, action, note }) {
   return (
     <div style={{ marginBottom: 14 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
         <span style={{ ...S.mono, color: T.cyan }}>{label}</span>
-        <button style={S.linkBtn} onClick={() => onCopy(label, text)}>{copied === label ? "Copied ✓" : "Copy"}</button>
+        <span style={{ display: "flex", gap: 14 }}>
+          {action}
+          <button style={S.linkBtn} onClick={() => onCopy(label, text)}>{copied === label ? "Copied ✓" : "Copy"}</button>
+        </span>
       </div>
       <pre style={{ background: "#0E1E38", border: `1px solid ${T.line}`, borderRadius: 4, padding: 14, fontSize: 12, lineHeight: 1.55, color: T.ink, overflowX: "auto", maxHeight: 180, margin: 0, fontFamily: "'IBM Plex Mono', monospace", whiteSpace: "pre-wrap" }}>{text}</pre>
+      {note && <p style={{ ...S.mono, color: T.dim, margin: "6px 0 0", letterSpacing: 0.4, lineHeight: 1.5 }}>{note}</p>}
     </div>
   );
 }
